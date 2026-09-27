@@ -2,22 +2,22 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import Optional
 
-
 class BookstoreError(Exception):
     pass
-
 
 class DuplicateISBNError(BookstoreError):
     pass
 
-
 class InsufficientStockError(BookstoreError):
     pass
-
 
 class OrderNotFoundError(BookstoreError):
     pass
 
+class ReviewStatus:
+    PENDING = "на модерації"
+    APPROVED = "схвалено"
+    REJECTED = "відхилено"
 
 @dataclass
 class Book:
@@ -26,7 +26,6 @@ class Book:
     isbn: str
     price: float
     stock: int
-
 
 @dataclass
 class Order:
@@ -37,7 +36,6 @@ class Order:
     total_amount: float
     status: str
 
-
 @dataclass
 class Review:
     review_id: int
@@ -45,8 +43,7 @@ class Review:
     author_name: str
     text: str
     rating: int
-    status: str = "на модерації"
-
+    status: str = ReviewStatus.PENDING
 
 class Bookstore:
     VALID_STATUSES = frozenset({"в обробці", "відправлено", "доставлено"})
@@ -151,12 +148,32 @@ class Bookstore:
 
         return recommended[:limit]
 
-    def add_review(self, isbn: str, author_name: str, text: str, rating: int) -> Optional[Review]:
-        pass
+    def add_review(self, isbn: str, author_name: str, text: str, rating: int) -> Review:
+        if isbn not in self._inventory:
+            raise KeyError(f"Книгу з ISBN '{isbn}' не знайдено.")
+        if not (1 <= rating <= 5):
+            raise ValueError("Оцінка повинна бути в діапазоні від 1 до 5.")
+
+        review = Review(
+            review_id=self._next_review_id,
+            isbn=isbn,
+            author_name=author_name,
+            text=text,
+            rating=rating,
+            status=ReviewStatus.PENDING,
+        )
+        self._reviews[self._next_review_id] = review
+        self._next_review_id += 1
+        return review
 
     def moderate_review(self, review_id: int, approved: bool) -> None:
-        pass
+        review = self._reviews.get(review_id)
+        if not review:
+            raise KeyError(f"Відгук з ID {review_id} не знайдено.")
+        review.status = ReviewStatus.APPROVED if approved else ReviewStatus.REJECTED
 
     def get_approved_reviews(self, isbn: str) -> list[Review]:
-        return []
-
+        return [
+            r for r in self._reviews.values()
+            if r.isbn == isbn and r.status == ReviewStatus.APPROVED
+        ]
